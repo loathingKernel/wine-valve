@@ -535,15 +535,23 @@ BOOL fs_hack_is_integer(void)
     return is_int;
 }
 
-BOOL fs_hack_is_fsr(float *sharpness)
+BOOL fs_hack_is_fsr(BOOL *lite, float *sharpness)
 {
     static int is_fsr = -1;
+    static int is_fsr_lite = -1;
     int sharpness_int = 2;
     if (is_fsr < 0)
     {
         const char *e = getenv("WINE_FULLSCREEN_FSR");
         is_fsr = e && strcmp(e, "0");
     }
+    if (is_fsr_lite < 0)
+    {
+        const char *e = getenv("WINE_FULLSCREEN_FSR_LITE");
+        is_fsr_lite = e && strcmp(e, "0");
+    }
+    if (lite)
+         *lite = is_fsr_lite;
     if (sharpness)
     {
         const char *e = getenv("WINE_FULLSCREEN_FSR_STRENGTH");
@@ -551,7 +559,7 @@ BOOL fs_hack_is_fsr(float *sharpness)
             sharpness_int = atoi(e);
         *sharpness = (float) sharpness_int / 10.0f;
     }
-    TRACE("is_fsr: %s, sharpness: %2.4f\n", is_fsr ? "TRUE" : "FALSE", sharpness ? *sharpness : 0.0f);
+    TRACE("is_fsr: %s, is_lite = %s, sharpness: %2.4f\n", is_fsr ? "TRUE" : "FALSE", is_fsr_lite ? "TRUE" : "FALSE", sharpness ? *sharpness : 0.0f);
     return is_fsr;
 }
 
