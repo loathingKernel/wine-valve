@@ -107,9 +107,7 @@ struct VkSwapchainKHR_T
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
     VkFormat format;
-    BOOL fsr;
-    BOOL fsr_lite;
-    float sharpness;
+    struct fs_hack_upscaler upscaler;
 
     struct fs_comp_pipeline blit_pipeline;
     struct fs_comp_pipeline fsr_easu_pipeline;

@@ -3266,6 +3266,19 @@ class VkGenerator(object):
         f.write("/* Wine internal vulkan driver version, needs to be bumped upon vulkan_funcs changes. */\n")
         f.write("#define WINE_VULKAN_DRIVER_VERSION {0}\n\n".format(DRIVER_VERSION))
 
+        f.write("struct fs_hack_upscaler\n{\n")
+        f.write("    BOOL is_blit, is_fsr, is_nis;\n")
+        f.write("    union {\n")
+        f.write("        struct {\n")
+        f.write("        } blit;\n")
+        f.write("        struct {\n")
+        f.write("            BOOL lite;\n")
+        f.write("            float sharpness;\n")
+        f.write("        } fsr;\n")
+        f.write("        struct {\n")
+        f.write("        } nis;\n")
+        f.write("    };\n};\n\n")
+
         f.write("struct vulkan_funcs\n{\n")
         f.write("    /* Vulkan global functions. These are the only calls at this point a graphics driver\n")
         f.write("     * needs to provide. Other function calls will be provided indirectly by dispatch\n")
@@ -3296,7 +3309,7 @@ class VkGenerator(object):
         f.write("     * resolution; user_sz will contain the app's requested mode; and dst_blit\n")
         f.write("     * will contain the area to blit the user image to in real coordinates.\n")
         f.write("     * All parameters are optional. */\n")
-        f.write("    VkBool32 (*query_fs_hack)(VkSurfaceKHR surface, VkExtent2D *real_sz, VkExtent2D *user_sz, VkRect2D *dst_blit, VkFilter *filter, BOOL *fsr, BOOL *fsr_lite, float *sharpness);\n")
+        f.write("    VkBool32 (*query_fs_hack)(VkSurfaceKHR surface, VkExtent2D *real_sz, VkExtent2D *user_sz, VkRect2D *dst_blit, VkFilter *filter, struct fs_hack_upscaler *upscaler);\n")
 
         f.write("};\n\n")
 

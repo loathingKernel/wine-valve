@@ -2172,7 +2172,7 @@ static VkResult create_descriptor_set(VkDevice device, struct VkSwapchainKHR_T *
     userDescriptorImageInfo.sampler = swapchain->sampler;
 
     realDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    realDescriptorImageInfo.imageView = swapchain->fsr ? hack->fsr_view : hack->swapchain_view;
+    realDescriptorImageInfo.imageView = swapchain->upscaler.is_fsr ? hack->fsr_view : hack->swapchain_view;
 
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = hack->descriptor_set;
@@ -2192,7 +2192,7 @@ static VkResult create_descriptor_set(VkDevice device, struct VkSwapchainKHR_T *
 
     device->funcs.p_vkUpdateDescriptorSets(device->device, 2, descriptorWrites, 0, NULL);
 
-    if (swapchain->fsr)
+    if (swapchain->upscaler.is_fsr)
     {
         res = device->funcs.p_vkAllocateDescriptorSets(device->device, &descriptorAllocInfo, &hack->fsr_set);
         if (res != VK_SUCCESS)
@@ -2258,9 +2258,9 @@ static VkResult init_compute_state(VkDevice device, struct VkSwapchainKHR_T *swa
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = swapchain->fs_hack_filter;
     samplerInfo.minFilter = swapchain->fs_hack_filter;
-    samplerInfo.addressModeU = swapchain->fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    samplerInfo.addressModeV = swapchain->fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    samplerInfo.addressModeW = swapchain->fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeU = swapchain->upscaler.is_fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeV = swapchain->upscaler.is_fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerInfo.addressModeW = swapchain->upscaler.is_fsr ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     samplerInfo.anisotropyEnable = VK_FALSE;
     samplerInfo.maxAnisotropy = 1;
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -2289,7 +2289,7 @@ static VkResult init_compute_state(VkDevice device, struct VkSwapchainKHR_T *swa
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.maxSets = swapchain->n_images;
 
-    if (swapchain->fsr)
+    if (swapchain->upscaler.is_fsr)
     {
         poolSizes[0].descriptorCount *= 2;
         poolSizes[1].descriptorCount *= 2;
@@ -2328,9 +2328,9 @@ static VkResult init_compute_state(VkDevice device, struct VkSwapchainKHR_T *swa
     if(res != VK_SUCCESS)
         goto fail;
 
-    if (swapchain->fsr)
+    if (swapchain->upscaler.is_fsr)
     {
-        if (swapchain->fsr_lite)
+        if (swapchain->upscaler.fsr.lite)
             res = create_pipeline(device, swapchain, fsr_easu_lite_comp_spv, sizeof(fsr_easu_lite_comp_spv), 16 * sizeof(uint32_t) /* 4 * uvec4 */, &swapchain->fsr_easu_pipeline);
         else
             res = create_pipeline(device, swapchain, fsr_easu_comp_spv, sizeof(fsr_easu_comp_spv), 16 * sizeof(uint32_t) /* 4 * uvec4 */, &swapchain->fsr_easu_pipeline);
@@ -2749,7 +2749,7 @@ NTSTATUS wine_vkCreateSwapchainKHR(void *args)
         native_info.oldSwapchain = ((struct VkSwapchainKHR_T *)(UINT_PTR)native_info.oldSwapchain)->swapchain;
 
     if(vk_funcs->query_fs_hack &&
-            vk_funcs->query_fs_hack(native_info.surface, &object->real_extent, &user_sz, &object->blit_dst, &object->fs_hack_filter, &object->fsr, &object->fsr_lite, &object->sharpness) &&
+            vk_funcs->query_fs_hack(native_info.surface, &object->real_extent, &user_sz, &object->blit_dst, &object->fs_hack_filter, &object->upscaler) &&
             native_info.imageExtent.width == user_sz.width &&
             native_info.imageExtent.height == user_sz.height)
     {
@@ -2778,7 +2778,7 @@ NTSTATUS wine_vkCreateSwapchainKHR(void *args)
 
         object->format = native_info.imageFormat;
 
-        if (object->fsr)
+        if (object->upscaler.is_fsr)
             native_info.imageFormat = srgb_to_unorm(native_info.imageFormat);
 
         if(native_info.imageFormat != VK_FORMAT_B8G8R8A8_UNORM &&
@@ -2915,7 +2915,7 @@ NTSTATUS wine_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(void *args)
         adjust_max_image_count(phys_dev, capabilities);
 
     if (res == VK_SUCCESS && vk_funcs->query_fs_hack &&
-            vk_funcs->query_fs_hack(wine_surface_from_handle(surface)->driver_surface, NULL, &user_res, NULL, NULL, NULL, NULL, NULL)){
+            vk_funcs->query_fs_hack(wine_surface_from_handle(surface)->driver_surface, NULL, &user_res, NULL, NULL, NULL)){
         capabilities->currentExtent = user_res;
         capabilities->minImageExtent = user_res;
         capabilities->maxImageExtent = user_res;
@@ -2941,7 +2941,7 @@ NTSTATUS wine_vkGetPhysicalDeviceSurfaceCapabilities2KHR(void *args)
         adjust_max_image_count(phys_dev, &capabilities->surfaceCapabilities);
 
     if (res == VK_SUCCESS && vk_funcs->query_fs_hack &&
-            vk_funcs->query_fs_hack(wine_surface_from_handle(surface_info->surface)->driver_surface, NULL, &user_res, NULL, NULL, NULL, NULL, NULL)){
+            vk_funcs->query_fs_hack(wine_surface_from_handle(surface_info->surface)->driver_surface, NULL, &user_res, NULL, NULL, NULL)){
         capabilities->surfaceCapabilities.currentExtent = user_res;
         capabilities->surfaceCapabilities.minImageExtent = user_res;
         capabilities->surfaceCapabilities.maxImageExtent = user_res;
@@ -3575,7 +3575,7 @@ static VkResult record_fsr_cmd(VkDevice device, struct VkSwapchainKHR_T *swapcha
 
     /* 2nd pass (rcas) */
 
-    c.fp[0] = exp2f(-swapchain->sharpness);
+    c.fp[0] = exp2f(-swapchain->upscaler.fsr.sharpness);
     c.uint[2] = swapchain->blit_dst.extent.width;
     c.uint[3] = swapchain->blit_dst.extent.height;
     c.uint[4] = swapchain->blit_dst.offset.x;
@@ -3658,7 +3658,7 @@ static VkResult fshack_vk_queue_present(VkQueue queue, const VkPresentInfoKHR *p
                     return VK_ERROR_DEVICE_LOST;
                 }
 
-                if (swapchain->fsr)
+                if (swapchain->upscaler.is_fsr)
                 {
                     if(queue->device->queue_props[queue_idx].queueFlags & VK_QUEUE_COMPUTE_BIT)
                         res = record_fsr_cmd(queue->device, swapchain, hack);
