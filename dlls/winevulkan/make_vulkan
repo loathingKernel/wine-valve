@@ -3272,6 +3272,7 @@ class VkGenerator(object):
         f.write("        struct {\n")
         f.write("        } blit;\n")
         f.write("        struct {\n")
+        f.write("            BOOL fp16;\n")
         f.write("            BOOL lite;\n")
         f.write("            float sharpness;\n")
         f.write("        } fsr;\n")

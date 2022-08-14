@@ -74,11 +74,14 @@ struct fs_hack_image
     uint32_t cmd_queue_idx;
     VkCommandBuffer cmd;
     VkImage swapchain_image;
+    VkImage blit_image;
     VkImage fsr_image;
     VkImage user_image;
     VkSemaphore blit_finished;
-    VkImageView user_view, swapchain_view, fsr_view;
-    VkDescriptorSet descriptor_set, fsr_set;
+    VkImageView user_view, blit_view;
+    VkImageView swapchain_view, fsr_view;
+    VkDescriptorSet descriptor_set;
+    VkDescriptorSet fsr_set;
 };
 
 struct fs_comp_pipeline
@@ -99,21 +102,32 @@ struct VkSwapchainKHR_T
     VkImageUsageFlags surface_usage;
     VkRect2D blit_dst;
     VkCommandPool *cmd_pools; /* VkCommandPool[device->queue_count] */
-    VkDeviceMemory user_image_memory, fsr_image_memory;
+    VkDeviceMemory user_image_memory, blit_image_memory;
+    VkDeviceMemory fsr_image_memory;
     uint32_t n_images;
     struct fs_hack_image *fs_hack_images; /* struct fs_hack_image[n_images] */
     VkFilter fs_hack_filter;
     VkSampler sampler;
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
+    VkPipelineLayout pipeline_layout;
+    VkPipeline pipeline;
     VkFormat format;
-    struct fs_hack_upscaler upscaler;
 
-    struct fs_comp_pipeline blit_pipeline;
+    struct fs_hack_upscaler upscaler;
+    struct fs_comp_pipeline fsr_blit_pipeline;
     struct fs_comp_pipeline fsr_easu_pipeline;
     struct fs_comp_pipeline fsr_rcas_pipeline;
 
     struct wine_vk_mapping mapping;
+};
+
+struct upscaler_implementation
+{
+    VkResult (*init_compute_state)(VkDevice device, struct VkSwapchainKHR_T *swapchain);
+//     VkResult (*record_compute_cmd)(VkDevice device, struct VkSwapchainKHR_T *swapchain, struct fs_hack_image *hack, uint32_t queue_idx);
+    VkResult (*record_compute_cmd)(VkDevice device, struct VkSwapchainKHR_T *swapchain, struct fs_hack_image *hack);
+    void (*destroy_compute_state)(VkDevice device, struct VkSwapchainKHR_T *swapchain);
 };
 
 struct wine_debug_utils_messenger;

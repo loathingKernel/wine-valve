@@ -1,16 +1,15 @@
 #version 460
 #extension GL_GOOGLE_include_directive: require
 
-layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
-
 layout(binding = 0) uniform sampler2D texSampler;
-layout(binding = 1) uniform writeonly image2D outImage;
-
+layout(binding = 1,rgba32f) uniform writeonly image2D outImage;
 layout(push_constant) uniform pushConstants {
     uvec2 c1;
     ivec2 extent;
     ivec4 viewport;
 };
+
+layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
 
 #define A_GPU 1
 #define A_GLSL 1
@@ -19,7 +18,6 @@ layout(push_constant) uniform pushConstants {
 vec4 FsrRcasLoadF(ivec2 p) { return texelFetch(texSampler, clamp(p, ivec2(0), extent), 0); }
 void FsrRcasInputF(inout float r, inout float g, inout float b) {}
 #include "ffx_fsr1.h"
-
 
 void main()
 {
