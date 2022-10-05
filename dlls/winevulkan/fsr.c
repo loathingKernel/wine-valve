@@ -10,13 +10,8 @@
 
 #include "vulkan_private.h"
 
-#include "fsr_blit_comp_spv.h"
-#include "fsr_easu_comp_spv.h"
-#include "fsr_easu_fp16_comp_spv.h"
-#include "fsr_easu_lite_comp_spv.h"
-#include "fsr_easu_lite_fp16_comp_spv.h"
-#include "fsr_rcas_comp_spv.h"
-#include "fsr_rcas_fp16_comp_spv.h"
+#include "fsr_shaders.h"
+
 
 WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
 

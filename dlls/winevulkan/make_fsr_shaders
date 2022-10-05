@@ -3,6 +3,7 @@
 import os
 import subprocess
 import array
+import typing
 from dataclasses import dataclass
 
 @dataclass
@@ -44,7 +45,7 @@ def compile_shader(job: ShaderJob):
     else:
         exit(1)
 
-def generate_header(job, spv_file: str):
+def generate_header(job, spv_file: str, header: typing.TextIO):
     if not os.path.isfile(spv_file):
         print("The file {0} does not exist.".format(spv_file))
         exit(1)
@@ -54,12 +55,28 @@ def generate_header(job, spv_file: str):
         print("File size is not aligned to 4 bytes, are we sure this is a spv file?")
 
     name = spv_file.replace(".", "_")
-    header_file_name = name + ".h"
-    print("Generating header {0}".format(header_file_name))
 
     values = array.array('I')
     with open(spv_file, 'rb') as spv:
         values.fromfile(spv, spv_size//4)
+
+    header.write("const uint32_t {0}[] = {{\n    ".format(name))
+
+    indent_index = 0
+    for value in values:
+        if indent_index == 8:
+            header.write("\n    ")
+            indent_index = 0
+        header.write("0x{:08x},".format(value))
+        indent_index += 1
+
+    header.write("\n};\n\n")
+
+    os.remove(spv_file)
+
+def run_compile_jobs():
+    header_file_name = "fsr_shaders" + ".h"
+    print("Generating header {0}".format(header_file_name))
 
     with open(header_file_name, 'w') as header:
         header.write("/*\n")
@@ -73,27 +90,14 @@ def generate_header(job, spv_file: str):
 
         header.write("#include <stdint.h>\n\n")
 
-        header.write("const uint32_t {0}[] = {{\n    ".format(name))
+        for job in shader_compile_jobs:
+            print("--- Compile {0} shader sources ---".format(job.name))
+            shader = compile_shader(job)
+            print("--- Generate {0} header files ---".format(job.name))
+            generate_header(job, shader, header)
 
-        indent_index = 0
-        for value in values:
-            if indent_index == 8:
-                header.write("\n    ")
-                indent_index = 0
-            header.write("0x{:08x},".format(value))
-            indent_index += 1
-
-        header.write("\n};\n\n")
         header.write("#endif /* {0} */\n".format(include_guard_name))
 
-    os.remove(spv_file)
-
-def run_compile_jobs():
-    for job in shader_compile_jobs:
-        print("--- Compile {0} shader sources ---".format(job.name))
-        shader = compile_shader(job)
-        print("--- Generate {0} header files ---".format(job.name))
-        generate_header(job, shader)
 
 def set_working_directory():
     path = os.path.abspath(__file__)
