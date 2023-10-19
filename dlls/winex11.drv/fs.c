@@ -60,6 +60,7 @@ static struct fs_monitor_size fs_monitor_sizes_base[] =
     {{2560, 1440}}, /* 16:9 */
     {{2880, 1620}}, /* 16:9 */
     {{3200, 1800}}, /* 16:9 */
+    {{1280, 800}},  /*  8:5 */
     {{1440, 900}},  /*  8:5 */
     {{1680, 1050}}, /*  8:5 */
     {{1920, 1200}}, /*  8:5 */
@@ -75,10 +76,10 @@ static struct fs_monitor_size fs_monitor_sizes_base[] =
 
 /* The order should be in sync with the values in 'fs_hack_is_fsr_single_mode'*/
 static float fsr_ratios[] = {
-	2.0f, /* FSR Performance */
-	1.7f, /* FSR Balanced */
-	1.5f, /* FSR Quality */
-	1.3f, /* FSR Ultra Quality */
+    2.0f, /* FSR Performance */
+    1.7f, /* FSR Balanced */
+    1.5f, /* FSR Quality */
+    1.3f, /* FSR Ultra Quality */
 };
 
 /* A fake monitor for the fullscreen hack */
@@ -315,12 +316,12 @@ static BOOL fs_hack_is_fsr_custom_mode(struct fs_monitor_size *fsr_custom_size)
     e = getenv("WINE_FULLSCREEN_FSR_CUSTOM_MODE");
     if (e)
     {
-        const int n = sscanf(e, "%dx%d", &width, &height);
+        const int n = sscanf(e, "%ux%u", &width, &height);
         if (n==2)
         {
             fsr_custom_size->size.cx = width;
             fsr_custom_size->size.cy = height;
-            TRACE("found custom resolution: %dx%d\n", fsr_custom_size->size.cx, fsr_custom_size->size.cy);
+            TRACE("found custom resolution: %ux%u\n", fsr_custom_size->size.cx, fsr_custom_size->size.cy);
             return TRUE;
         }
     }
@@ -335,11 +336,11 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
     const char *env;
 
     /* Default resolutions + FSR resolutions + Custom resolution */
-    struct fs_monitor_size fs_monitor_sizes[ARRAY_SIZE(fs_monitor_sizes_base) + ARRAY_SIZE(fsr_ratios) + 1] = { {{1920, 1080}, TRUE }, };
-    struct fs_monitor_size fs_monitor_sizes_fsr[ARRAY_SIZE(fsr_ratios)] = { {{1477, 831}, TRUE }, };
-    struct fs_monitor_size fsr_custom_size = { {{1477, 831}, TRUE }, };
+    struct fs_monitor_size fs_monitor_sizes[ARRAY_SIZE(fs_monitor_sizes_base) + ARRAY_SIZE(fsr_ratios) + 1] = {0};
+    struct fs_monitor_size fs_monitor_sizes_fsr[ARRAY_SIZE(fsr_ratios)] = {0};
+    struct fs_monitor_size fsr_custom_size = {0};
     UINT fs_monitor_sizes_count, fsr_mode;
-    float sharpness;
+    float sharpness, real_w_ratio, h_ratio, h_factor;
     BOOL is_fsr, is_fsr_single_mode, is_fsr_custom_mode;
 
     *mode_count = 0;
@@ -358,13 +359,57 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
     /* If FSR is enabled, generate and add FSR resolutions */
     if (is_fsr)
     {
+        if (mode_host.dmPelsWidth / 16.0f == mode_host.dmPelsHeight / 9.0f)
+        {
+            /* 16:9 resolutions */
+            h_ratio = 9.0f;
+        }
+        else if ((DWORD)(mode_host.dmPelsWidth / 210.0f) == (DWORD)(mode_host.dmPelsHeight / 90.0f))
+        {
+            /* 21:9 ultra-wide resolutions */
+            h_ratio = 9.0f;
+        }
+        else if (mode_host.dmPelsWidth / 32.0f == mode_host.dmPelsHeight / 9.0f)
+        {
+            /* 32:9 "duper-ultra-wide" resolutions */
+            h_ratio = 9.0f;
+        }
+        else if (mode_host.dmPelsWidth / 8.0f == mode_host.dmPelsHeight / 5.0f)
+        {
+            /* 16:10 resolutions */
+            h_ratio = 10.0f;
+        }
+        else if (mode_host.dmPelsWidth / 12.0f == mode_host.dmPelsHeight / 5.0f)
+        {
+            /* 24:10 resolutions */
+            h_ratio = 10.0f;
+        }
+        else
+        {
+            /* In case of unknown ratio, naively create FSR resolutions */
+            h_ratio = 1.0f;
+        }
+
+        /* All inconsistent resolutions have correct height ratio, so compute the width ratio */
+        real_w_ratio = mode_host.dmPelsWidth / (mode_host.dmPelsHeight / h_ratio);
         for (i = 0; i < ARRAY_SIZE(fs_monitor_sizes_fsr); ++i)
         {
-            fs_monitor_sizes_fsr[i].size.cy = (DWORD)(mode_host.dmPelsHeight / fsr_ratios[i] + 0.5f);
-            fs_monitor_sizes_fsr[i].size.cx = (DWORD)(fs_monitor_sizes_fsr[i].size.cy
-                * ((float)mode_host.dmPelsWidth / (float)mode_host.dmPelsHeight) + 0.5f);
-            
-            TRACE("created fsr resolution: %dx%d, ratio: %1.1f\n",
+            if (h_ratio == 1.0f)
+            {
+                /* Naive generation (matches AMD mode documentation but not sample code) */
+                /* AMD's sample rounds down, which doesn't match their published list of resolutions */
+                fs_monitor_sizes_fsr[i].size.cy = (DWORD)(mode_host.dmPelsHeight / fsr_ratios[i] + 0.5f);
+                fs_monitor_sizes_fsr[i].size.cx = (DWORD)(fs_monitor_sizes_fsr[i].size.cy
+                    * ((float)mode_host.dmPelsWidth / (float)mode_host.dmPelsHeight) + 0.5f);
+            }
+            else
+            {
+                /* Round to nearest integer (our way) */
+                h_factor = (DWORD)((mode_host.dmPelsHeight / h_ratio) / fsr_ratios[i] + 0.5f);
+                fs_monitor_sizes_fsr[i].size.cx = (DWORD)(real_w_ratio * h_factor + 0.5f);
+                fs_monitor_sizes_fsr[i].size.cy = (DWORD)(h_ratio * h_factor + 0.5f);
+            }
+            TRACE("created fsr resolution: %ux%u, ratio: %1.1f\n",
                   fs_monitor_sizes_fsr[i].size.cx,
                   fs_monitor_sizes_fsr[i].size.cy,
                   fsr_ratios[i]);
@@ -391,9 +436,9 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
         is_fsr_custom_mode = fs_hack_is_fsr_custom_mode(&fsr_custom_size);
         if (is_fsr_custom_mode)
         {
-			memcpy(fs_monitor_sizes + fs_monitor_sizes_count, &fsr_custom_size, sizeof(fsr_custom_size));
-			fs_monitor_sizes_count += 1;
-            TRACE("added custom resolution: %dx%d\n", fsr_custom_size.size.cx, fsr_custom_size.size.cy);
+            memcpy(fs_monitor_sizes + fs_monitor_sizes_count, &fsr_custom_size, sizeof(fsr_custom_size));
+            fs_monitor_sizes_count += 1;
+            TRACE("added custom resolution: %ux%u\n", fsr_custom_size.size.cx, fsr_custom_size.size.cy);
         }
     }
 
@@ -445,8 +490,8 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
 
         /* Don't report modes that are larger than the requested fsr mode or the custom mode */
         if(is_fsr && (is_fsr_custom_mode || is_fsr_single_mode)) {
-            if (mode.dmPelsWidth < fsr_custom_size.size.cx) continue;
-            if (mode.dmPelsHeight < fsr_custom_size.size.cy) continue;
+            if (mode.dmPelsWidth > fsr_custom_size.size.cx) continue;
+            if (mode.dmPelsHeight > fsr_custom_size.size.cy) continue;
         }
 
         for (j = 0; j < DEPTH_COUNT; ++j)
@@ -457,11 +502,15 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
         }
     }
 
-    /* report real modes only if FSR is not used */
-    if(!is_fsr)
     for (i = 0, real_mode = real_modes; i < real_mode_count; ++i)
     {
         DEVMODEW mode = *real_mode;
+
+        /* Don't report modes that are larger than the requested fsr mode or the custom mode */
+        if(is_fsr && (is_fsr_custom_mode || is_fsr_single_mode)) {
+            if (mode.dmPelsWidth > fsr_custom_size.size.cx) continue;
+            if (mode.dmPelsHeight > fsr_custom_size.size.cy) continue;
+        }
 
         /* Don't report modes that are larger than the current mode */
         if (mode.dmPelsWidth <= mode_host.dmPelsWidth && mode.dmPelsHeight <= mode_host.dmPelsHeight)
