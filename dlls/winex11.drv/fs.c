@@ -424,12 +424,15 @@ static void monitor_get_modes( struct fs_monitor *monitor, DEVMODEW **modes, UIN
             /* Also place it in the custom resolution container, so we can limit resolutions later on */
             fsr_custom_size.size.cx = fs_monitor_sizes_fsr[fsr_mode].size.cx;
             fsr_custom_size.size.cy = fs_monitor_sizes_fsr[fsr_mode].size.cy;
+            TRACE("added fsr resolution: %ux%u\n", fsr_custom_size.size.cx, fsr_custom_size.size.cy);
         }
         /* If a single mode was not specified, add all FSR resolutions */
         else
         {
             memcpy(fs_monitor_sizes+fs_monitor_sizes_count, fs_monitor_sizes_fsr, sizeof(fs_monitor_sizes_fsr));
             fs_monitor_sizes_count += ARRAY_SIZE(fs_monitor_sizes_fsr);
+            for (i = 0; i < ARRAY_SIZE(fs_monitor_sizes_fsr); ++i)
+                TRACE("added fsr resolution: %ux%u\n", fs_monitor_sizes_fsr[i].size.cx, fs_monitor_sizes_fsr[i].size.cy);
         }
 
         /* Add the custom resolution to the list */

@@ -2244,7 +2244,7 @@ static VkResult init_compute_state(struct wine_device *device, struct wine_swapc
         goto fail;
     }
 
-    res = create_pipeline(device, swapchain, blit_comp_spv, sizeof(blit_comp_spv), 4 * sizeof(float) /* 2 * vec2 */, &swapchain->blit_pipeline);
+    res = create_pipeline(device, swapchain, fsr_blit_comp_spv, sizeof(fsr_blit_comp_spv), 4 * sizeof(float) /* 2 * vec2 */, &swapchain->blit_pipeline);
     if (res != VK_SUCCESS)
         goto fail;
 
