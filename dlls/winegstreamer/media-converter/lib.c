@@ -306,7 +306,7 @@ void dump_fozdb_close(struct dump_fozdb *db)
 bool media_converter_init(void)
 {
     GST_DEBUG_CATEGORY_INIT(media_converter_debug,
-            "protonmediaconverter", GST_DEBUG_FG_YELLOW, "Proton media converter");
+                            "protonmediaconverter", GST_DEBUG_FG_YELLOW, "Proton media converter");
 
     // Check if the PROTON_VIDEO_CONVERT environment variable is set to 0
     // Only try to register if the envvar isn't set
