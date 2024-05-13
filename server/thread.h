@@ -94,6 +94,8 @@ struct thread
     struct list            kernel_object; /* list of kernel object pointers */
     data_size_t            desc_len;      /* thread description length in bytes */
     WCHAR                 *desc;          /* thread description string */
+    struct fast_sync      *fast_sync;     /* fast synchronization object */
+    struct event          *fast_alert_event; /* fast synchronization alert event */
     struct object         *locked_completion; /* completion port wait object successfully waited by the thread */
     struct object         *queue_shared_mapping; /* thread queue shared memory mapping */
     queue_shm_t           *queue_shared;  /* thread queue shared memory ptr */
