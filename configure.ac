@@ -437,6 +437,7 @@ AC_CHECK_HEADERS(\
 	linux/serial.h \
 	linux/types.h \
 	linux/ucdrom.h \
+	linux/winesync.h \
 	linux/wireless.h \
 	lwp.h \
 	mach-o/loader.h \
