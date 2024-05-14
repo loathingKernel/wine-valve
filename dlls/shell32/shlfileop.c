@@ -2027,7 +2027,7 @@ static HRESULT WINAPI file_operation_PerformOperations(IFileOperation *iface)
 {
     FIXME("(%p): stub.\n", iface);
 
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI file_operation_GetAnyOperationsAborted(IFileOperation *iface, BOOL *aborted)
