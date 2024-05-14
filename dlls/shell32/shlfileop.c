@@ -2034,7 +2034,9 @@ static HRESULT WINAPI file_operation_GetAnyOperationsAborted(IFileOperation *ifa
 {
     FIXME("(%p, %p): stub.\n", iface, aborted);
 
-    return E_NOTIMPL;
+    *aborted = FALSE;
+
+    return S_OK;
 }
 
 static const IFileOperationVtbl file_operation_vtbl =
