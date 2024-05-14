@@ -1876,7 +1876,7 @@ static HRESULT WINAPI file_operation_SetOperationFlags(IFileOperation *iface, DW
 {
     FIXME("(%p, %lx): stub.\n", iface, flags);
 
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI file_operation_SetProgressMessage(IFileOperation *iface, LPCWSTR message)
