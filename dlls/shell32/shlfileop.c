@@ -1939,9 +1939,42 @@ static HRESULT WINAPI file_operation_RenameItems(IFileOperation *iface, IUnknown
 static HRESULT WINAPI file_operation_MoveItem(IFileOperation *iface, IShellItem *item, IShellItem *folder,
         LPCWSTR name, IFileOperationProgressSink *sink)
 {
-    FIXME("(%p, %p, %p, %s, %p): stub.\n", iface, item, folder, debugstr_w(name), sink);
+    LPWSTR source;
+    LPWSTR dest;
+    HRESULT hr;
+    BOOL ret;
+    FIXME("(%p, %p, %p, %s, %p): semi-stub.\n", iface, item, folder, debugstr_w(name), sink);
 
-    return E_NOTIMPL;
+    hr = IShellItem_GetDisplayName(item, SIGDN_FILESYSPATH, &source);
+
+    if (FAILED(hr))
+        return hr;
+
+    hr = IShellItem_GetDisplayName(folder, SIGDN_FILESYSPATH, &dest);
+
+    if (FAILED(hr))
+    {
+        CoTaskMemFree(source);
+        return hr;
+    }
+
+    dest = CoTaskMemRealloc(dest, (lstrlenW(dest) + lstrlenW(name) + 2) * sizeof(WCHAR));
+
+    if (!dest)
+    {
+        CoTaskMemFree(source);
+        return E_OUTOFMEMORY;
+    }
+
+    wcscat(dest, L"\\");
+    wcscat(dest, name);
+
+    ret = MoveFileW(source, dest);
+
+    CoTaskMemFree(source);
+    CoTaskMemFree(dest);
+
+    return ret ? S_OK : E_FAIL;
 }
 
 static HRESULT WINAPI file_operation_MoveItems(IFileOperation *iface, IUnknown *items, IShellItem *folder)
