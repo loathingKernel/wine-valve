@@ -160,7 +160,6 @@ struct fd
     unsigned int         comp_flags;  /* completion flags */
     int                  esync_fd;    /* esync file descriptor */
     unsigned int         fsync_idx;   /* fsync shm index */
-    struct fast_sync    *fast_sync;   /* fast synchronization object */
 };
 
 static void fd_dump( struct object *obj, int verbose );
@@ -188,7 +187,6 @@ static const struct object_ops fd_ops =
     NULL,                     /* unlink_name */
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_fast_sync,         /* get_fast_sync */
     no_close_handle,          /* close_handle */
     fd_destroy                /* destroy */
 };
@@ -232,7 +230,6 @@ static const struct object_ops device_ops =
     NULL,                     /* unlink_name */
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_fast_sync,         /* get_fast_sync */
     no_close_handle,          /* close_handle */
     device_destroy            /* destroy */
 };
@@ -275,7 +272,6 @@ static const struct object_ops inode_ops =
     NULL,                     /* unlink_name */
     no_open_file,             /* open_file */
     no_kernel_obj_list,       /* get_kernel_obj_list */
-    no_get_fast_sync,         /* get_fast_sync */
     no_close_handle,          /* close_handle */
     inode_destroy             /* destroy */
 };
@@ -320,7 +316,6 @@ static const struct object_ops file_lock_ops =
     NULL,                       /* unlink_name */
     no_open_file,               /* open_file */
     no_kernel_obj_list,         /* get_kernel_obj_list */
-    no_get_fast_sync,           /* get_fast_sync */
     no_close_handle,            /* close_handle */
     no_destroy                  /* destroy */
 };
@@ -1586,7 +1581,6 @@ static void fd_destroy( struct object *obj )
     if (do_esync())
         close( fd->esync_fd );
     if (fd->fsync_idx) fsync_free_shm_idx( fd->fsync_idx );
-    if (fd->fast_sync) release_object( fd->fast_sync );
 }
 
 /* check if the desired access is possible without violating */
@@ -1707,7 +1701,6 @@ static struct fd *alloc_fd_object(void)
     fd->comp_flags = 0;
     fd->esync_fd   = -1;
     fd->fsync_idx  = 0;
-    fd->fast_sync  = NULL;
     init_async_queue( &fd->read_q );
     init_async_queue( &fd->write_q );
     init_async_queue( &fd->wait_q );
@@ -1757,7 +1750,6 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
     fd->no_fd_status = STATUS_BAD_DEVICE_TYPE;
     fd->esync_fd   = -1;
     fd->fsync_idx  = 0;
-    fd->fast_sync  = NULL;
     init_async_queue( &fd->read_q );
     init_async_queue( &fd->write_q );
     init_async_queue( &fd->wait_q );
@@ -2247,21 +2239,13 @@ void set_fd_signaled( struct fd *fd, int signaled )
 {
     if (fd->comp_flags & FILE_SKIP_SET_EVENT_ON_HANDLE) return;
     fd->signaled = signaled;
-    if (signaled)
-    {
-        wake_up( fd->user, 0 );
-        fast_set_event( fd->fast_sync );
-    }
-    else
-    {
-        if (do_fsync())
-            fsync_clear( fd->user );
+    if (signaled) wake_up( fd->user, 0 );
 
-        if (do_esync())
-            esync_clear( fd->esync_fd );
+    if (do_fsync() && !signaled)
+        fsync_clear( fd->user );
 
-        fast_reset_event( fd->fast_sync );
-    }
+    if (do_esync() && !signaled)
+        esync_clear( fd->esync_fd );
 }
 
 /* check if events are pending and if yes return which one(s) */
@@ -2276,19 +2260,6 @@ int check_fd_events( struct fd *fd, int events )
     pfd.events = events;
     if (poll( &pfd, 1, 0 ) <= 0) return 0;
     return pfd.revents;
-}
-
-struct fast_sync *default_fd_get_fast_sync( struct object *obj )
-{
-    struct fd *fd = get_obj_fd( obj );
-    struct fast_sync *ret;
-
-    if (!fd->fast_sync)
-        fd->fast_sync = fast_create_event( FAST_SYNC_MANUAL_SERVER, fd->signaled );
-    ret = fd->fast_sync;
-    release_object( fd );
-    if (ret) grab_object( ret );
-    return ret;
 }
 
 /* default signaled() routine for objects that poll() on an fd */
