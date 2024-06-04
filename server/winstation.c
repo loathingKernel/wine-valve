@@ -90,7 +90,6 @@ static const struct object_ops winstation_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
-    no_get_fast_sync,             /* get_fast_sync */
     winstation_close_handle,      /* close_handle */
     winstation_destroy            /* destroy */
 };
@@ -133,7 +132,6 @@ static const struct object_ops desktop_ops =
     default_unlink_name,          /* unlink_name */
     no_open_file,                 /* open_file */
     no_kernel_obj_list,           /* get_kernel_obj_list */
-    no_get_fast_sync,             /* get_fast_sync */
     desktop_close_handle,         /* close_handle */
     desktop_destroy               /* destroy */
 };

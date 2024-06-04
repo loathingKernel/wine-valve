@@ -67,7 +67,6 @@ struct completion_wait
     unsigned int       depth;
     int                esync_fd;
     unsigned int       fsync_idx;
-    struct fast_sync   *fast_sync;
 };
 
 struct completion
@@ -81,7 +80,6 @@ static int completion_wait_signaled( struct object *obj, struct wait_queue_entry
 static void completion_wait_satisfied( struct object *obj, struct wait_queue_entry *entry );
 static int completion_wait_get_esync_fd( struct object *obj, enum esync_type *type );
 static unsigned int completion_wait_get_fsync_idx( struct object *obj, enum fsync_type *type );
-static struct fast_sync *completion_wait_get_fast_sync( struct object *obj );
 static void completion_wait_destroy( struct object * );
 
 static const struct object_ops completion_wait_ops =
@@ -106,7 +104,6 @@ static const struct object_ops completion_wait_ops =
     NULL,                           /* unlink_name */
     no_open_file,                   /* open_file */
     no_kernel_obj_list,             /* get_kernel_obj_list */
-    completion_wait_get_fast_sync,  /* get_fast_sync */
     no_close_handle,                /* close_handle */
     completion_wait_destroy         /* destroy */
 };
@@ -116,7 +113,6 @@ static int completion_add_queue( struct object *obj, struct wait_queue_entry *en
 static void completion_remove_queue( struct object *obj, struct wait_queue_entry *entry );
 static int completion_get_esync_fd( struct object *obj, enum esync_type *type );
 static unsigned int completion_get_fsync_idx( struct object *obj, enum fsync_type *type );
-static struct fast_sync *completion_get_fast_sync ( struct object *obj );
 static void completion_destroy( struct object * );
 
 static const struct object_ops completion_ops =
@@ -141,7 +137,6 @@ static const struct object_ops completion_ops =
     default_unlink_name,       /* unlink_name */
     no_open_file,              /* open_file */
     no_kernel_obj_list,        /* get_kernel_obj_list */
-    completion_get_fast_sync,  /* get_fast_sync */
     no_close_handle,           /* close_handle */
     completion_destroy         /* destroy */
 };
@@ -169,8 +164,6 @@ static void completion_wait_destroy( struct object *obj)
         close( wait->esync_fd );
 
     if (wait->fsync_idx) fsync_free_shm_idx( wait->fsync_idx );
-
-    if (wait->fast_sync) release_object( wait->fast_sync );
 }
 
 static void completion_wait_dump( struct object *obj, int verbose )
@@ -204,16 +197,6 @@ static unsigned int completion_wait_get_fsync_idx( struct object *obj, enum fsyn
     assert( obj->ops == &completion_wait_ops );
     *type = FSYNC_MANUAL_SERVER;
     return wait->fsync_idx;
-}
-
-static struct fast_sync *completion_wait_get_fast_sync( struct object *obj )
-{
-    struct completion_wait *wait = (struct completion_wait *)obj;
-
-    if (!wait->fast_sync)
-        wait->fast_sync = fast_create_event( FAST_SYNC_MANUAL_SERVER, !list_empty( &wait->queue ) );
-    if (wait->fast_sync) grab_object( wait->fast_sync );
-    return wait->fast_sync;
 }
 
 static void completion_wait_satisfied( struct object *obj, struct wait_queue_entry *entry )
@@ -271,14 +254,6 @@ static unsigned int completion_get_fsync_idx( struct object *obj, enum fsync_typ
     return completion->wait->obj.ops->get_fsync_idx( &completion->wait->obj, type );
 }
 
-static struct fast_sync *completion_get_fast_sync ( struct object *obj )
-{
-    struct completion *completion = (struct completion*)obj;
-
-    assert(obj->ops == &completion_ops);
-    return completion->wait->obj.ops->get_fast_sync( &completion->wait->obj );
-}
-
 static void completion_destroy( struct object *obj )
 {
     struct completion *completion = (struct completion *)obj;
@@ -308,7 +283,6 @@ static struct completion *create_completion( struct object *root, const struct u
     list_init( &completion->wait->queue );
     completion->wait->depth = 0;
     completion->wait->fsync_idx = 0;
-    completion->wait->fast_sync = NULL;
 
     if (do_fsync())
         completion->wait->fsync_idx = fsync_alloc_shm( 0, 0 );
@@ -341,7 +315,6 @@ void add_completion( struct completion *completion, apc_param_t ckey, apc_param_
     completion->wait->depth++;
 
     wake_up( &completion->wait->obj, 1 );
-    fast_set_event( completion->wait->fast_sync );
 }
 
 /* create a completion */
@@ -436,8 +409,6 @@ DECL_HANDLER(remove_completion)
         reply->status = msg->status;
         reply->information = msg->information;
         free( msg );
-        if (list_empty( &wait->queue ))
-            fast_reset_event( wait->fast_sync );
 
         if (!completion_wait_signaled( &wait->obj, NULL ))
         {
