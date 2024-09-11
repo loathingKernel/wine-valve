@@ -1,0 +1,6 @@
+# Changelog
+
+## Version 9.0-20240905
+* Proton
+  - removed: fastsync: Implement fastsync synchronization (winesync)
+  - added: ntdll: fix compilation with link-time optimizations
